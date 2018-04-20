@@ -27,6 +27,12 @@ function fout = waitbar_embedded(x,ax, varargin)
 % $Date: 2017/11/22 $
 
 %% Input parameters
+global t_init;
+global t_axes;
+global t_draw;
+global t_prop;
+global t_addons;
+tic
 if (nargin == 0)
     error(message('MATLAB:waitbar:InvalidArguments'));
 elseif (nargin > 0)
@@ -75,6 +81,7 @@ end
 
 %% Body
 x = floor(max(0,min(100*x,100))); % Map any value of x to a integer value between 0 and 100
+t_init = t_init + toc;
 try
     drawWaitbar(varargin{:});
 catch ex
@@ -91,6 +98,7 @@ end
     %% Status Bar Drawing Function
     function drawWaitbar(varargin)
         %% axes definition
+        tic
         if isempty(ax.UserData)
             set(ax,...
                 'Units','pix',...
@@ -103,19 +111,18 @@ end
                 'FontSize',10);
             ax.Title.FontSize = 8;
             ax.Title.FontWeight = 'normal';
-            ax.UserData = struct('length',[], 'defaultFaceColor',[]);
+            % UserData initialization
+            ax.UserData = struct('length',0, 'defaultFaceColor',zeros(1,3), 'rc', gobjects(1, 10));
+            for k = 10:-1:1
+                ax.UserData.rc(k) = rectangle(ax, 'EdgeColor','none', 'FaceColor','g');
+            end
+            ax.UserData.defaultFaceColor = ax.UserData.rc(1).FaceColor;
         end
         
-        bDraw = true;
-        if ~isempty(ax.UserData.length)
-            bDraw = (ax.UserData.length ~= x);
-        end
-        
-        for k = 10:-1:1
-            rc{k} = findobj(allchild(ax), 'flat', 'Type','rectangle', 'Tag',sprintf('rectangle%i', k));
-        end
-        
+        bDraw = (ax.UserData.length ~= x);
+        t_axes = t_axes + toc;
         %% drawing waitbar
+        tic
         if bDraw
             ax.UserData.length = x;
             
@@ -127,13 +134,7 @@ end
 
             % rectangle definition
             for k = 10:-1:1
-                if isempty(rc{k})
-                    rc{k} = rectangle(ax, 'Tag',sprintf('rectangle%i', k), 'EdgeColor','none', 'FaceColor','g');
-                end
-                rc{k}.Position = [ox,oy,round(100*x/100)*xx,k/length(rc)*yy];
-            end
-            if isempty(ax.UserData.defaultFaceColor)
-                ax.UserData.defaultFaceColor = rc{1}.FaceColor;
+                ax.UserData.rc(k).Position = [ox,oy,round(100*x/100)*xx,k/length(ax.UserData.rc)*yy];
             end
 
             % text inside the rectangle
@@ -165,10 +166,11 @@ end
                 'FontWeight','bold',...
                 'FontSmoothing','on',...
                 'Color',0.3*[1 1 1]);
-       end
-        
-        
+        end
+        t_draw = t_draw + toc;
+
         %% Properties
+        tic
         if nargin > 0
             % we have optional arguments: property-value pairs
             if rem (nargin, 2 ) ~= 0
@@ -186,17 +188,17 @@ end
                     elseif isprop(ax, propList{ii})
                         % set the prop/value pair of the axes
                         set(ax, propList{ii}, valueList{ii});
-                    elseif isprop(rc{1}, propList{ii})
+                    elseif isprop(ax.UserData.rc(1), propList{ii})
                         % set the prop/value pair of the rectangle
                         if strcmpi(propList{ii}, 'FaceColor')
-                            set(rc{1}, propList{ii}, valueList{ii});
-                            if ~isequal(ax.UserData.defaultFaceColor, rc{1}.FaceColor)
-                                ax.UserData.defaultFaceColor = rc{1}.FaceColor;
+                            set(ax.UserData.rc(1), propList{ii}, valueList{ii});
+                            if ~isequal(ax.UserData.defaultFaceColor, ax.UserData.rc(1).FaceColor)
+                                ax.UserData.defaultFaceColor = ax.UserData.rc(1).FaceColor;
                                 bDraw = true;
                             end
                         else
-                            for k=1:length(rc)
-                                set(rc{k}, propList{ii}, valueList{ii});
+                            for k=1:length(ax.UserData.rc)
+                                set(ax.UserData.rc(k), propList{ii}, valueList{ii});
                             end
                         end
                     end
@@ -205,23 +207,25 @@ end
                 end
             end
         end
-        
+        t_prop = t_prop + toc;
         %% Add-ons after properties definition
+        tic
         if bDraw
             % default color
             color = ax.UserData.defaultFaceColor;
             % 3D-Color
-            for k=1:length(rc)
+            for k=length(ax.UserData.rc):-1:1
                 % starting color
                 color1 = color + (1-color)*0.25;
                 % ending color
                 color2 = color * (1-0.25);
                 % rectangle color according to its height
-                heightRt = rc{k}.Position(4);
+                heightRt = ax.UserData.rc(k).Position(4);
                 colorRt = color2 + (heightRt - ax.YLim(1)) * (color1 - color2) / (ax.YLim(2)-ax.YLim(1));
-                rc{k}.FaceColor = colorRt;
+                ax.UserData.rc(k).FaceColor = colorRt;
             end
-       end
+        end
+        t_addons = t_addons + toc;
     end    
 end
 
