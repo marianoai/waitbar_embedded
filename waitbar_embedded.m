@@ -32,7 +32,7 @@ global t_axes;
 global t_draw;
 global t_prop;
 global t_addons;
-tic
+timerVal = tic;
 if (nargin == 0)
     error(message('MATLAB:waitbar:InvalidArguments'));
 elseif (nargin > 0)
@@ -81,7 +81,7 @@ end
 
 %% Body
 x = floor(max(0,min(100*x,100))); % Map any value of x to a integer value between 0 and 100
-t_init = t_init + toc;
+t_init = t_init + toc(timerVal);
 try
     drawWaitbar(varargin{:});
 catch ex
@@ -98,7 +98,7 @@ end
     %% Status Bar Drawing Function
     function drawWaitbar(varargin)
         %% axes definition
-        tic
+        timerVal = tic;
         if isempty(ax.UserData)
             set(ax,...
                 'Units','pix',...
@@ -109,48 +109,31 @@ end
                 'Visible','on',...
                 'Box','on',...
                 'FontSize',10);
+            
+            % Title
             ax.Title.FontSize = 8;
             ax.Title.FontWeight = 'normal';
-            % UserData initialization
-            ax.UserData = struct('length',0, 'defaultFaceColor',zeros(1,3), 'rc', gobjects(1, 10));
-            for k = 10:-1:1
-                ax.UserData.rc(k) = rectangle(ax, 'EdgeColor','none', 'FaceColor','g');
-            end
-            ax.UserData.defaultFaceColor = ax.UserData.rc(1).FaceColor;
-        end
-        
-        bDraw = (ax.UserData.length ~= x);
-        t_axes = t_axes + toc;
-        %% drawing waitbar
-        tic
-        if bDraw
-            ax.UserData.length = x;
             
             % scale
             px = (ax.XLim(2)-ax.XLim(1))/ax.Position(3); ox = 2*px;
             py = (ax.YLim(2)-ax.YLim(1))/ax.Position(4); oy = 2*py;
             xx = 1 - 2*ox/(ax.XLim(2)-ax.XLim(1));
             yy = 1 - 2*oy/(ax.YLim(2)-ax.YLim(1));
-
-            % rectangle definition
+           
+            % UserData initialization
+            ax.UserData = struct('length',-1, 'defaultFaceColor',zeros(1,3), 'rc',gobjects(1,10), 'text',gobjects(1,5), 'rectArea',zeros(1,4));
             for k = 10:-1:1
-                ax.UserData.rc(k).Position = [ox,oy,round(100*x/100)*xx,k/length(ax.UserData.rc)*yy];
+                ax.UserData.rc(k) = rectangle(ax, 'EdgeColor','none', 'FaceColor','g');
             end
-
-            % text inside the rectangle
-            txt = findobj(allchild(ax), 'flat', 'Type','text');
-            if ~isempty(txt)
-                delete(txt);
-            end
-            texto = '';
-            if x
-                texto = [num2str(round(100*x/100)),'%'];
-            end
-
+            ax.UserData.defaultFaceColor = ax.UserData.rc(1).FaceColor;
+            ax.UserData.rectArea = [ox,oy,xx,yy];
+            
             % sombra del texto
+            k=0;
             for dx=[-px px]
                 for dy=[-py py]
-                    text(ax,(ax.XLim(2) - ax.XLim(1))/2 + dx,(ax.YLim(2) - ax.YLim(1))/2 + py + dy,texto,...
+                    k=k+1;
+                    ax.UserData.text(k) = text(ax,(ax.XLim(2) - ax.XLim(1))/2 + dx,(ax.YLim(2) - ax.YLim(1))/2 + py + dy,'',...
                         'HorizontalAlignment','center',...
                         'VerticalAlignment','middle',...
                         'FontSize',ax.Position(4)/2-1,...
@@ -159,7 +142,9 @@ end
                         'Color',ax.Color);
                 end
             end
-            text(ax,(ax.XLim(2) - ax.XLim(1))/2,(ax.YLim(2) - ax.YLim(1))/2 + py,texto,...
+            % texto
+            k=k+1;
+            ax.UserData.text(k) = text(ax,(ax.XLim(2) - ax.XLim(1))/2,(ax.YLim(2) - ax.YLim(1))/2 + py,'',...
                 'HorizontalAlignment','center',...
                 'VerticalAlignment','middle',...
                 'FontSize',ax.Position(4)/2-1,...
@@ -167,10 +152,33 @@ end
                 'FontSmoothing','on',...
                 'Color',0.3*[1 1 1]);
         end
-        t_draw = t_draw + toc;
+        
+        bDraw = (ax.UserData.length ~= x);
+        t_axes = t_axes + toc(timerVal);
+        %% drawing waitbar
+        timerVal = tic;
+        if bDraw
+            ax.UserData.length = x;
+
+            % resizing rectangles
+            for k = 10:-1:1
+                ax.UserData.rc(k).Position = [ax.UserData.rectArea(1:2), [round(100*x/100), k/length(ax.UserData.rc)].*ax.UserData.rectArea(3:4)];
+            end
+
+            % text inside the rectangle
+            texto = '';
+            if x
+                texto = [num2str(round(100*x/100)),'%'];
+            end
+            
+            for k=1:length(ax.UserData.text)
+                ax.UserData.text(k).String=texto;
+            end
+        end
+        t_draw = t_draw + toc(timerVal);
 
         %% Properties
-        tic
+        timerVal = tic;
         if nargin > 0
             % we have optional arguments: property-value pairs
             if rem (nargin, 2 ) ~= 0
@@ -183,7 +191,7 @@ end
             for ii = 1:length(propList)
                 try
                     if isprop(ax.Title, propList{ii})
-                        % set the prop/value pair of the axes
+                        % set the Title of the axes
                         set(ax.Title, propList{ii}, valueList{ii});
                     elseif isprop(ax, propList{ii})
                         % set the prop/value pair of the axes
@@ -207,9 +215,9 @@ end
                 end
             end
         end
-        t_prop = t_prop + toc;
+        t_prop = t_prop + toc(timerVal);
         %% Add-ons after properties definition
-        tic
+        timerVal = tic;
         if bDraw
             % default color
             color = ax.UserData.defaultFaceColor;
@@ -225,7 +233,7 @@ end
                 ax.UserData.rc(k).FaceColor = colorRt;
             end
         end
-        t_addons = t_addons + toc;
+        t_addons = t_addons + toc(timerVal);
     end    
 end
 
