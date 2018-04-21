@@ -13,7 +13,7 @@ global t_prop; t_prop=0;
 global t_addons; t_addons=0;
 %% Test waitbar_embedded
 timerVal = tic;
-N=10000;
+N=1000000;
 h = waitbar_embedded(0,ax,'String',strcat('Palos de la Frontera','-','Embajadores'));
 for color = 'g'
 % for color= ['c' 'r' 'm' 'b' 'g']
@@ -21,7 +21,8 @@ for color = 'g'
 %         waitbar_embedded(i/N,h,'String',strcat('Palos de la Frontera','-','Embajadores'));
 %         waitbar_embedded(i/N,h);
 %         fast_waitbar_embedded(i, N, h,'String',strcat('Palos de la Frontera','-','Embajadores'));
-        fast_waitbar_embedded(i, N, h);
+%         fast_waitbar_embedded(i, N, h);
+        waitbar_embedded([i,N],h);
     end
 end
 toc(timerVal)

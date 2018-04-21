@@ -1,14 +1,19 @@
 function fout = waitbar_embedded(x,ax, varargin)
-%WAITBAR_EMBEDDED displays a waitbar inside to the axes given as parameter or current axes.
+%WAITBAR_EMBEDDED displays a waitbar inside to the axes given as parameter or current axes as default.
+%
 %   H = WAITBAR_EMBEDDED(X, AX, property, value, property, value, ...)
 %   creates and displays a waitbar of fractional length X.
-%   > The handle to the waitbar axes is returned in H.
-%   > X should be between 0 and 1.
-%   > AX can be supplied as a parameter by handle or unique tag.
-%   > Optional arguments property and value allow to set corresponding waitbar properties.
+%
+%   - The handle to the waitbar axes is returned in H.
+%   - X should be between 0 and 1.
+%   - AX can be supplied as a parameter by handle or unique tag.
+%   - Optional arguments property and value allow to set corresponding waitbar properties.
 %
 %   WAITBAR_EMBEDDED(X) will set the length of the bar in the most recently
 %   created axes to the fractional length X.
+%   
+%   WAITBAR_EMBEDDED([X, X_MAX]) will set the FAST MODE witch will force 
+%   just 100 steps from 0 to X_MAX
 %
 %   WAITBAR_EMBEDDED(X,AX) will set the length of the bar in axes AX
 %   to the fractional length X.mod(a,m)
@@ -24,7 +29,9 @@ function fout = waitbar_embedded(x,ax, varargin)
 %       end
 
 % Author: Mariano Aránguez
-% $Date: 2017/11/22 $
+% $Date: 2018/04/21 $ Changed: performance improvements, faster drawing. 
+%                     New: Fast Mode.
+% $Date: 2017/11/22 $ First Release
 
 %% Input parameters
 global t_init;
@@ -33,32 +40,28 @@ global t_draw;
 global t_prop;
 global t_addons;
 timerVal = tic;
-if (nargin == 0)
-    error(message('MATLAB:waitbar:InvalidArguments'));
-elseif (nargin > 0)
+if (nargin > 0)
     % Must be a numeric value
-    if ~isnumeric(x) || ~isscalar(x)
-        error(message('MATLAB:waitbar:InvalidFirstInput'));
-    elseif ((x < 0) || (x > 1))
-        % Throw a warning in this case, clamp it down and keep going
-        % this is a behavior change and we want to eventually error out in this scenario,
-        % but want to do that gradually
-        if (x < 0)
-            x = 0;
-        elseif (x > 1)
-            x = 1;
+    if isnumeric(x) && (length(x)<=2)
+        if length(x)==2 % [x, x_max] -> FAST MODE: forcing just 100 steps
+            if mod(x(1), max(1,floor(x(2)/100))) && (x(1)~=x(2))
+                t_init = t_init + toc(timerVal);
+                return;
+            end
+            x = x(1)/x(2);
         end
-        % This warning will be enabled when callers no longer send in values
-        % outside the allowed range
-        % warning('MATLAB:waitbar:invalidValue', '%s\n%s%s', ...
-        %    'The first argument must be a numeric value between 0 and 1.',...
-        %    'Setting the value to: ', num2str(x));
+        if ((x < 0) || (x > 1))
+            if (x < 0)
+                x = 0;
+            elseif (x > 1)
+                x = 1;
+            end
+        end
+    else
+        error(message('MATLAB:waitbar:InvalidFirstInput'));
     end
     
-    if (nargin == 1)
-        % An axes handle is not provided. Look for one.
-        ax = gca;
-    elseif (nargin > 1)
+    if (nargin > 1)
         % A waitbar message or handle to an existing waitbar has been provided
         if ischar(ax) || iscellstr(ax)
             param=ax;
@@ -71,12 +74,17 @@ elseif (nargin > 0)
         elseif ~isgraphics(ax, 'axes')
             error('MATLAB:waitbar:InvalidInputs', 'Input arguments of type %s not valid.', class(ax))
         end
+    else
+        % An axes handle is not provided. Looking for one.
+        ax = gca;
     end
     
     if isempty(ax)
         % No axes found
         error('MATLAB:waitbar:InvalidArguments', 'No current axes found for the current figure.');
     end
+else
+    error(message('MATLAB:waitbar:InvalidArguments'));
 end
 
 %% Body
@@ -99,6 +107,7 @@ end
 if nargout==1
     fout = ax;
 end
+
     %% Status Bar Drawing Function
     function drawWaitbar(varargin)
         %% axes definition
@@ -155,6 +164,8 @@ end
                 'FontWeight','bold',...
                 'FontSmoothing','on',...
                 'Color',0.3*[1 1 1]);
+            
+            clear px ox py oy xx yy dx dy;
         end
         
         bDraw = (ax.UserData.length ~= x); % optimization: checking if progress value has changed
