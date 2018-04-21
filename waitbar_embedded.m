@@ -64,7 +64,7 @@ elseif (nargin > 0)
             param=ax;
             ax = findobj(allchild(0), '-depth',inf, 'tag',ax);
             if isempty(ax)
-                % An axes handle is not provided. Look for one.
+                % An axes handle is not provided. Looking for one.
                 varargin = horzcat({param},varargin);
                 ax = gca;
             end
@@ -81,16 +81,20 @@ end
 
 %% Body
 x = floor(max(0,min(100*x,100))); % Map any value of x to a integer value between 0 and 100
-t_init = t_init + toc(timerVal);
 try
-    drawWaitbar(varargin{:});
+    if isfield(ax.UserData, 'varargin') && isequal(varargin, ax.UserData.varargin) % optimization: checking if properties have changed
+t_init = t_init + toc(timerVal);
+        drawWaitbar();
+    else
+t_init = t_init + toc(timerVal);
+        drawWaitbar(varargin{:});
+    end
 catch ex
     err = MException('MATLAB:waitbar:InvalidArguments','%s',...
         getString(message('MATLAB:waitbar:ImproperArguments')));
     err = err.addCause(ex);
     throw(err);
 end
-drawnow;
 
 if nargout==1
     fout = ax;
@@ -153,11 +157,12 @@ end
                 'Color',0.3*[1 1 1]);
         end
         
-        bDraw = (ax.UserData.length ~= x);
+        bDraw = (ax.UserData.length ~= x); % optimization: checking if progress value has changed
         t_axes = t_axes + toc(timerVal);
         %% drawing waitbar
         timerVal = tic;
         if bDraw
+            % progress value
             ax.UserData.length = x;
 
             % resizing rectangles
@@ -170,7 +175,6 @@ end
             if x
                 texto = [num2str(round(100*x/100)),'%'];
             end
-            
             for k=1:length(ax.UserData.text)
                 ax.UserData.text(k).String=texto;
             end
@@ -187,6 +191,8 @@ end
             
             propList = varargin(1:2:end);
             valueList = varargin(2:2:end);
+            
+            ax.UserData.('varargin') = varargin;
 
             for ii = 1:length(propList)
                 try
@@ -232,6 +238,7 @@ end
                 colorRt = color2 + (heightRt - ax.YLim(1)) * (color1 - color2) / (ax.YLim(2)-ax.YLim(1));
                 ax.UserData.rc(k).FaceColor = colorRt;
             end
+        drawnow;
         end
         t_addons = t_addons + toc(timerVal);
     end    
